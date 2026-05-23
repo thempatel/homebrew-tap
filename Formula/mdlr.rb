@@ -7,17 +7,15 @@ class Mdlr < Formula
   head "https://github.com/thempatel/mdlr.git", branch: "main"
 
   depends_on "go" => :build
-  depends_on "rustup-init" => :build
+  depends_on "rustup" => :build
 
   def install
     ENV["RUSTUP_HOME"] = buildpath/"rustup"
     ENV["CARGO_HOME"] = buildpath/"cargo"
+    ENV.prepend_path "PATH", Formula["rustup"].opt_bin
 
-    system "rustup-init", "-y",
-                          "--no-modify-path",
-                          "--default-toolchain", "none",
-                          "--profile", "minimal"
-    ENV.prepend_path "PATH", "#{ENV["CARGO_HOME"]}/bin"
+    # rust-toolchain.toml pins the channel; rustup auto-installs it on first cargo invocation.
+    system "rustup", "set", "profile", "minimal"
 
     system "cargo", "build", "--release", "--bin", "mdlr"
     bin.install "target/release/mdlr"
