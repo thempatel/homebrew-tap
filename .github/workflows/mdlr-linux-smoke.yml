@@ -1,0 +1,57 @@
+name: mdlr linux smoke test
+
+# Smoke-test the Linux glibc build of mdlr that this tap ships. The mdlr binary
+# is dynamically linked against glibc, so this confirms it actually loads and
+# runs `-h` on a standard glibc runner. macOS builds are covered by the cask.
+
+on:
+  push:
+    paths:
+      - 'Casks/mdlr.rb'
+  workflow_dispatch:
+
+jobs:
+  smoke:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            arch: amd64
+          - runner: ubuntu-24.04-arm
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Read version from cask
+        id: ver
+        run: |
+          version=$(grep -oE 'version "[^"]+"' Casks/mdlr.rb | head -1 | sed -E 's/version "([^"]+)"/\1/')
+          if [ -z "$version" ]; then
+            echo "Could not parse version from Casks/mdlr.rb" >&2
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Testing mdlr $version on linux/${{ matrix.arch }} (glibc)"
+
+      - name: Download and extract glibc tarball
+        run: |
+          v="${{ steps.ver.outputs.version }}"
+          url="https://github.com/thempatel/mdlr/releases/download/v${v}/mdlr_${v}_linux_${{ matrix.arch }}.tar.gz"
+          echo "Fetching $url"
+          curl -fsSL "$url" -o mdlr.tar.gz
+          mkdir -p out
+          tar xzf mdlr.tar.gz -C out
+          ls -l out
+
+      - name: Verify mdlr -h works
+        run: |
+          chmod +x out/mdlr
+          out/mdlr -h | tee help.txt
+          test -s help.txt
+
+      - name: Verify mdlr-extract-go compiled
+        run: |
+          chmod +x out/mdlr-extract-go
+          file out/mdlr-extract-go | grep -q ELF
